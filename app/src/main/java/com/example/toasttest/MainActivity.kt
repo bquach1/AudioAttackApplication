@@ -1,5 +1,6 @@
 package com.example.toasttest
 
+import android.content.Context
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material.Button
@@ -30,6 +31,13 @@ const val QUIT_MSG = 3
 class MainActivity : ComponentActivity() {
 
     private var isThreadRunning = false
+
+    // Helper function to show a toast message
+    private fun showToast(context: android.content.Context, message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    val context = this
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,7 +106,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val myWorkerRunnable = WorkerRunnable(mainThreadHandler)
+        val myWorkerRunnable = WorkerRunnable(mainThreadHandler, context)
         val myWorkerThread = Thread(myWorkerRunnable)
 
         setContent {
@@ -164,20 +172,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Helper function to show a toast message
-    private fun showToast(context: android.content.Context, message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-    }
-
-    class WorkerRunnable(val mainThreadHandler: Handler?) : Runnable {
+    class WorkerRunnable(val mainThreadHandler: Handler?, val context: Context) : Runnable {
 
         var workerRunnableHandler: Handler? = null
 
         override fun run() {
-            Log.v("Test", "Run Start")
 
             // Loop start Point
             Looper.prepare()
+
+            Log.v("Test", "Run Start")
+
+            Toast.makeText(context, "Thread Run", Toast.LENGTH_SHORT).show()
 
             workerRunnableHandler = object : Handler(Looper.myLooper()!!) {
                 override fun handleMessage(msg: Message) {
