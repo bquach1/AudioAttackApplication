@@ -1,14 +1,11 @@
 package com.example.toasttest
 
-import android.content.Context
-import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material.Button
 import androidx.compose.material.Text
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.Message
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
@@ -16,215 +13,251 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlin.concurrent.thread
-import kotlin.system.measureTimeMillis
 import com.example.toasttest.ui.theme.ToastTestTheme
 import android.widget.Toast
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-
-const val HELLO_MSG = 1
-const val PING_PONG_MSG = 2
-const val QUIT_MSG = 3
 
 class MainActivity : ComponentActivity() {
 
-    private var isThreadRunning = false
+    private var backgroundThread: MyThread? = null
+    private var threadRunning = false
 
     // Helper function to show a toast message
     private fun showToast(context: android.content.Context, message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
-    val context = this
-
     override fun onCreate(savedInstanceState: Bundle?) {
+        backgroundThread?.notifyThread()
         super.onCreate(savedInstanceState)
 
-        var mainThreadHandler: Handler? = null
-
-        // Counter
-        var counter = 0
-        // How many threads we will create
-        var numberOfThreads = 1000
-
-        // Measure time to create 1000 threads
-        var time = measureTimeMillis {
-            // Create new threads on for loop
-            for (i in 0..numberOfThreads) {
-                thread() {
-                    counter++
-                }
-            }
-        }
-
-        println("Created $numberOfThreads threads in $time ms")
-
-        // How many coroutines we will create
-        var numberOfCoroutines = 1000
-
-        // Measure time to create 1000 coroutines
-        time = measureTimeMillis {
-            // Create new coroutines on for loop
-            for (i in 0..numberOfCoroutines) {
-                GlobalScope.launch {
-                    counter++
-                }
-            }
-        }
-
-        println("Created $numberOfCoroutines coroutines in $time ms")
-
-        // How many iteration on for loop
-        var forLoopCount = 100000
-
-        time = measureTimeMillis {
-            // Now we do samething in main thread
-            for (i in 0..forLoopCount) {
-                counter++
-            }
-        }
-
-        Log.v("ToniWesterlund", "Do  $forLoopCount iteration in $time ms")
-
-        // Create and start Thread
-        val mySimpleThread = SimpleThread()
-        mySimpleThread.start()
-
-        // Create and start runnable (Thread)
-        val mySimpleRunnable = SimpleRunnable()
-        val myThread = Thread(mySimpleRunnable)
-        myThread.start()
-
-        mainThreadHandler = object : Handler(Looper.getMainLooper()) {
-
-            override fun handleMessage(msg: Message) {
-                if (HELLO_MSG == msg.what) {
-                    Log.v("ToniWesterlund", "Hello World ${Thread.currentThread()}")
-                }
-            }
-        }
-
-        val myWorkerRunnable = WorkerRunnable(mainThreadHandler, context)
-        val myWorkerThread = Thread(myWorkerRunnable)
-
         setContent {
-            ToastTestTheme {
-                val context = LocalContext.current
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+            ComposeThread()
+        }
+    }
+
+    @Composable
+    fun ComposeThread() {
+        ToastTestTheme {
+            val context = LocalContext.current
+            val buttonTextState = remember { mutableStateOf("Start Thread") }
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Start Thread
+                Button(
+                    onClick = {
+                        toggleThread()
+                        Log.d("MyButton", "Button clicked. Thread running: $threadRunning")
+                        if (threadRunning) {
+                            buttonTextState.value = "Stop Thread"
+                        } else {
+                            buttonTextState.value = "Start Thread"
+                        }
+                    },
                 ) {
-                    // Start Thread
-                    Button(
-                        onClick = {
-                            myWorkerThread.start()
-                        },
-                    ) {
-                        Text("Start Thread")
-                    }
+                    Text(buttonTextState.value)
+                }
 
-                    // Send Hello Message
-                    Button(
-                        onClick = {
-                            val msg = Message()
-                            msg.what = HELLO_MSG
-                            msg.obj = "Hello"
-                            myWorkerRunnable.workerRunnableHandler?.sendMessage(msg)
-                            showToast(context, "Hello")
-                        },
-                    ) {
-                        Text("Hello")
-                    }
+                // Send Hello Message
+                Button(
+                    onClick = {
+                        if (threadRunning) {
+                            showToastAndNotifyThread(context)
+                        } else {
+                            showToast(context, "Thread is not running")
+                        }
+                    },
+                ) {
+                    Text("Hello")
+                }
 
-                    // Send Ping Pong Message
-                    Button(
-                        onClick = {
-                            val msg = Message()
-                            msg.what = PING_PONG_MSG
-                            msg.obj = "PING PONG"
-                            myWorkerRunnable.workerRunnableHandler?.sendMessage(msg)
-                            showToast(context, "Ping Pong")
-                        },
-                    ) {
-                        Text("Ping Pong")
-                    }
-
-                    // Send Quit Message
-                    Button(
-                        onClick = {
-                            val msg = Message()
-                            msg.what = QUIT_MSG
-                            msg.obj = "Quit"
-                            myWorkerRunnable.workerRunnableHandler?.sendMessage(msg)
-                            showToast(context, "Quit")
-                        },
-                    ) {
-                        Text("Quit")
-                    }
-
-                    // Display a message
-                    Text("Hello There")
+                if (buttonTextState.value == "Stop Thread") {
+                    Text("Thread is running")
+                } else {
+                    Text("Thread is not running")
                 }
             }
         }
     }
 
-    class WorkerRunnable(val mainThreadHandler: Handler?, val context: Context) : Runnable {
+    private fun toggleThread() {
+        if (backgroundThread == null) {
+            // Start the thread
+            threadRunning = true
+            backgroundThread = MyThread()
+            backgroundThread?.start()
+        } else {
+            // Stop the thread
+            threadRunning = false
+            backgroundThread?.stopThread()
+            backgroundThread = null
+        }
+    }
 
-        var workerRunnableHandler: Handler? = null
+    private fun showToastAndNotifyThread(context: android.content.Context) {
+        if (backgroundThread != null) {
+            // Notify the waiting thread
+            backgroundThread?.notifyThread()
 
-        override fun run() {
-
-            // Loop start Point
-            Looper.prepare()
-
-            Log.v("Test", "Run Start")
-
-            Toast.makeText(context, "Thread Run", Toast.LENGTH_SHORT).show()
-
-            workerRunnableHandler = object : Handler(Looper.myLooper()!!) {
-                override fun handleMessage(msg: Message) {
-
-                    // Handle Messages
-                    if (HELLO_MSG == msg.what) {
-                        Log.v("ToastTest", "Hello World ${Thread.currentThread()} ")
-                    } else if (PING_PONG_MSG == msg.what) {
-                        Log.v("ToastTest", "PING")
-                        val msgReply = Message()
-                        msgReply.what = HELLO_MSG
-                        msgReply.obj = "Hello"
-
-                        // Reply Message back to main thread
-                        mainThreadHandler!!.sendMessage(msgReply)
-
-                    } else if (QUIT_MSG == msg.what) {
-                        Log.v("ToniWesterlund", "QUIT_MSG")
-                        Looper.myLooper()?.quit()
-                    }
-
-                }
+            // Show a toast message
+            Handler(Looper.getMainLooper()).post {
+                showToast(context, "Hello")
             }
-            // Loop End Point
-            Looper.loop()
+        } else {
+            // Thread not running, show a message
+            showToast(context, "Thread is not running")
         }
     }
 
-    // SimpleThread Class, Inherited from Thread class
-    class SimpleThread : Thread() {
-
-        public override fun run() {
-            Log.v("ToniWesterlund", "Thread Run - ${Thread.currentThread()} has run")
-        }
-    }
-
-    // SimpleRunnable, Implements Runnable interface
-    class SimpleRunnable : Runnable {
-        override fun run() {
-            Log.v("ToniWesterlund", "Runnable Run - ${Thread.currentThread()} has run")
-        }
-
+    override fun onDestroy() {
+        super.onDestroy()
+        backgroundThread?.interrupt()
     }
 }
+
+class MyThread : Thread() {
+    private var isRunning = true
+    private val lock = Object()
+
+    override fun run() {
+        while (isRunning) {
+            synchronized(lock) {
+                try {
+                    lock.wait()
+                } catch (e: InterruptedException) {
+                    println(e)
+                }
+            }
+        }
+    }
+
+    fun stopThread() {
+        isRunning = false
+        synchronized(lock) {
+            lock.notify()
+        }
+    }
+
+    fun notifyThread() {
+        synchronized(lock) {
+            lock.notify()
+        }
+    }
+}
+
+//import android.os.Bundle
+//import android.os.Handler
+//import android.os.Looper
+//import android.widget.Toast
+//import androidx.activity.compose.setContent
+//import androidx.compose.material.Button
+//import androidx.compose.material.Text
+//import androidx.activity.ComponentActivity
+//import androidx.appcompat.app.AppCompatActivity
+//import androidx.compose.foundation.layout.*
+//import androidx.compose.foundation.layout.Arrangement
+//import androidx.compose.foundation.layout.Column
+//import androidx.compose.foundation.layout.fillMaxSize
+//import androidx.compose.ui.Alignment
+//import androidx.compose.ui.Modifier
+//import com.example.toasttest.ui.theme.ToastTestTheme
+//import androidx.compose.foundation.text.BasicTextField
+//import androidx.compose.foundation.text.KeyboardActions
+//import androidx.compose.foundation.text.KeyboardOptions
+//import androidx.compose.runtime.*
+//import androidx.compose.ui.unit.dp
+//import androidx.compose.ui.text.input.ImeAction
+//import com.example.toasttest.MyThread
+//
+//class MainActivity : AppCompatActivity() {
+//    private var backgroundThread: MyThread? = null
+//    private var threadRunning = false
+//
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//        setContent {
+//            MyComposeApp()
+//        }
+//    }
+//
+//    @Composable
+//    fun MyComposeApp() {
+//        var messageText by remember { mutableStateOf("Hello There") }
+//
+//        ToastTestTheme {
+//            Column(
+//                modifier = Modifier.fillMaxSize(),
+//                verticalArrangement = Arrangement.Center,
+//                horizontalAlignment = Alignment.CenterHorizontally
+//            ) {
+//                // Start Thread
+//                Button(
+//                    onClick = {
+//                        toggleThread()
+//                    },
+//                ) {
+//                    Text(if (threadRunning) "Stop Thread" else "Start Thread")
+//                }
+//
+//                Button(
+//                    onClick = {
+//                        if (threadRunning) {
+//                            showToastAndNotifyThread()
+//                        } else {
+//                            Toast.makeText(applicationContext, "Thread is not running", Toast.LENGTH_SHORT).show()
+//                        }
+//                    }
+//                ) {
+//                    Text("Show Toast")
+//                }
+//                BasicTextField(
+//                    value = messageText,
+//                    onValueChange = { messageText = it },
+//                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+//                    keyboardActions = KeyboardActions(onDone = {
+//                        showToastAndNotifyThread()
+//                    }),
+//                    modifier = Modifier.padding(16.dp))
+//            }
+//        }
+//    }
+//
+//    private fun toggleThread() {
+//        if (backgroundThread == null) {
+//            // Start the thread
+//            threadRunning = true
+//            backgroundThread = MyThread()
+//            backgroundThread?.start()
+//        } else {
+//            // Stop the thread
+//            threadRunning = false
+//            backgroundThread?.stopThread()
+//            backgroundThread = null
+//        }
+//    }
+//
+//    private fun showToastAndNotifyThread() {
+//        if (backgroundThread != null) {
+//            // Notify the waiting thread
+//            backgroundThread?.notifyThread()
+//
+//            // Show a toast message
+//            Handler(Looper.getMainLooper()).post {
+//                Toast.makeText(applicationContext, "Hello", Toast.LENGTH_SHORT).show()
+//            }
+//        } else {
+//            // Thread not running, show a message
+//            Toast.makeText(applicationContext, "Thread is not running", Toast.LENGTH_SHORT).show()
+//        }
+//    }
+//    override fun onDestroy() {
+//        super.onDestroy()
+//        backgroundThread?.interrupt()
+//    }
+//}
