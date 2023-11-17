@@ -151,7 +151,7 @@ import java.io.FileOutputStream
                     }
 
                     audioRecord = AudioRecord(
-                        MediaRecorder.AudioSource.MIC,
+                        MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                         44100, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize
                     )
 
