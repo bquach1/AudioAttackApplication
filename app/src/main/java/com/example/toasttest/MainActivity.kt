@@ -30,10 +30,13 @@ import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
 
-    class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity() {
 
         private var backgroundThread: MyThread? = null
+        private var audioThread: MyThread? = null
         private var threadRunning = false
 
         private enum class ThreadState {
@@ -51,12 +54,6 @@ import java.io.FileOutputStream
         private var audioFile: File? = null
         private var audioFilePath: String? = null
         private var fileOutputStream: FileOutputStream? = null
-
-        // Helper function to show a toast message
-        private fun showToast(context: Context, message: String) {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        }
-
         override fun onCreate(savedInstanceState: Bundle?) {
 
             ActivityCompat.requestPermissions(
@@ -123,6 +120,22 @@ import java.io.FileOutputStream
                         },
                     ) {
                         Text("Play Recorded Audio")
+                    }
+
+                    Button(
+                        onClick = {
+                            playAttackingNoise()
+                        },
+                    ) {
+                        Text("Play Attacking Noise 1")
+                    }
+
+                    Button (
+                        onClick = {
+                            stopAttackingNoise()
+                        },
+                    ) {
+                        Text("Stop Attacking Noise 1")
                     }
 
                     if (buttonTextState.value == "Stop Thread") {
@@ -196,6 +209,58 @@ import java.io.FileOutputStream
             }
         }
 
+        private var playedAudioTrack: AudioTrack? = null
+
+    private fun playAttackingNoise() {
+        val minBufferSize = AudioTrack.getMinBufferSize(
+            44100,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        )
+
+        val audioTrack = AudioTrack(
+            AudioManager.STREAM_MUSIC,
+            44100,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            minBufferSize,
+            AudioTrack.MODE_STREAM
+        )
+
+        val buffer = ByteArray(minBufferSize)
+
+        try {
+            val inputStream: InputStream = resources.openRawResource(R.raw.chirp0k24k30s)
+
+            audioTrack.play()
+
+            val playbackThread = Thread {
+                try {
+                    var bytesRead: Int
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        audioTrack.write(buffer, 0, bytesRead)
+                    }
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                } finally {
+                    inputStream.close()
+                    audioTrack.stop()
+                    audioTrack.release()
+                }
+            }
+
+            playbackThread.start()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+    }
+
+
+    private fun stopAttackingNoise() {
+        playedAudioTrack?.stop()
+        playedAudioTrack?.release()
+    }
+
     private fun playRecordedAudio() {
         val minBufferSize = AudioTrack.getMinBufferSize(
             44100,
@@ -229,21 +294,6 @@ import java.io.FileOutputStream
             audioTrack.release()
         }
     }
-
-        private fun showToastAndNotifyThread(context: Context) {
-            if (backgroundThread != null) {
-                // Notify the waiting thread
-                backgroundThread?.notifyThread()
-
-                // Show a toast message
-                Handler(Looper.getMainLooper()).post {
-                    showToast(context, "Hello")
-                }
-            } else {
-                // Thread not running, show a message
-                showToast(context, "Thread is not running")
-            }
-        }
 
         override fun onDestroy() {
             super.onDestroy()
@@ -284,4 +334,3 @@ class MyThread(private val context: Context) : Thread() {
         }
     }
 }
-
