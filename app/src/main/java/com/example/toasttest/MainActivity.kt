@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity() {
         val buffer = ByteArray(minBufferSize)
 
         try {
-            val inputStream: InputStream = resources.openRawResource(R.raw.chirp0k24k30s)
+            val inputStream: InputStream = resources.openRawResource(R.raw.mono_short_swap)
 
             audioTrack.play()
 
@@ -280,6 +280,8 @@ class MainActivity : ComponentActivity() {
         val buffer = ByteArray(minBufferSize)
 
         val audioFile = File(audioFilePath)
+
+        println(audioFilePath)
 
         if (audioFile.exists()) {
             val fileInputStream = FileInputStream(audioFile)
